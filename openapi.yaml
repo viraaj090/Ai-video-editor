@@ -1,0 +1,1438 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: ViralForge API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+  - name: Me
+    description: Current user, credits, and bonuses.
+  - name: Generate
+    description: AI script generation and rewriting.
+  - name: Media
+    description: Stock clips, voices, audio synthesis, and uploads.
+  - name: Render
+    description: Final video rendering pipeline.
+  - name: History
+    description: User's video history.
+  - name: Codes
+    description: Access code redemption.
+  - name: Voices
+    description: User-managed custom voices and ElevenLabs key.
+  - name: Admin
+    description: Owner-only management endpoints.
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '200':
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the OIDC authorization endpoint.
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+      responses:
+        '302':
+          description: Redirect to the returnTo path on success or /api/login on failure.
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the session and begin OIDC logout
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '302':
+          description: Redirect to the OIDC provider logout URL.
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange a mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileTokenExchangeRequest'
+      responses:
+        '200':
+          description: Session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileTokenExchangeSuccess'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token did not contain usable claims.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Token exchange failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Delete a mobile session token
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+      responses:
+        '200':
+          description: Logout processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutSuccess'
+  /me:
+    get:
+      tags: [Me]
+      operationId: getMe
+      summary: Get the current user profile with credits and lock state
+      responses:
+        '200':
+          description: User profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeProfile'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /me/share-bonus:
+    post:
+      tags: [Me]
+      operationId: claimShareBonus
+      summary: Claim a +1 credit bonus for sharing on WhatsApp
+      responses:
+        '200':
+          description: Bonus claimed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeProfile'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /me/integrations:
+    get:
+      tags: [Me]
+      operationId: getIntegrationStatus
+      summary: Check which third-party integrations are configured
+      responses:
+        '200':
+          description: Integration availability flags.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationStatus'
+  /generate/script:
+    post:
+      tags: [Generate]
+      operationId: generateScript
+      summary: Generate a market-aware video script (consumes 1 credit)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateScriptRequest'
+      responses:
+        '200':
+          description: Script generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptGeneration'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '402':
+          description: No credits remaining or locked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditError'
+  /generate/rewrite:
+    post:
+      tags: [Generate]
+      operationId: rewriteScript
+      summary: Rewrite an existing script based on user feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RewriteScriptRequest'
+      responses:
+        '200':
+          description: Rewritten script.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RewriteResult'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /pexels/search:
+    post:
+      tags: [Media]
+      operationId: searchPexelsClips
+      summary: Search Pexels for short stock video clips
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PexelsSearchRequest'
+      responses:
+        '200':
+          description: Stock clips matching the keywords.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PexelsSearchResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Pexels API key missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /elevenlabs/voices:
+    get:
+      tags: [Media]
+      operationId: listVoices
+      summary: List available voices, optionally filtered by market
+      parameters:
+        - name: market
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Market'
+      responses:
+        '200':
+          description: Voice list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoicesResponse'
+  /elevenlabs/synthesize:
+    post:
+      tags: [Media]
+      operationId: synthesizeVoice
+      summary: Generate voiceover audio from text using a selected voice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SynthesizeRequest'
+      responses:
+        '200':
+          description: Audio URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SynthesizeResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: ElevenLabs API key missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /render:
+    post:
+      tags: [Render]
+      operationId: renderVideo
+      summary: Render the final 1080p MP4 from script, voice, and clips
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderRequest'
+      responses:
+        '200':
+          description: Render complete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Render failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /codes/redeem:
+    post:
+      tags: [Codes]
+      operationId: redeemAccessCode
+      summary: Redeem an access code for unlimited or bonus credits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RedeemCodeRequest'
+      responses:
+        '200':
+          description: Code redeemed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedeemCodeResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Code not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Code already fully redeemed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '410':
+          description: Code expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /voices/custom:
+    get:
+      tags: [Voices]
+      operationId: listCustomVoices
+      summary: List the current user's custom voices
+      responses:
+        '200':
+          description: Custom voices.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomVoiceListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags: [Voices]
+      operationId: addCustomVoice
+      summary: Add a custom ElevenLabs voice ID for the current user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCustomVoiceRequest'
+      responses:
+        '200':
+          description: Voice added.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomVoice'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /voices/custom/{id}:
+    delete:
+      tags: [Voices]
+      operationId: deleteCustomVoice
+      summary: Remove a custom voice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /voices/elevenlabs-key:
+    get:
+      tags: [Voices]
+      operationId: getElevenlabsKeyStatus
+      summary: Check whether the current user has set a personal ElevenLabs key
+      responses:
+        '200':
+          description: Key status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElevenlabsKeyStatus'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags: [Voices]
+      operationId: setElevenlabsKey
+      summary: Set or clear the current user's personal ElevenLabs API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetElevenlabsKeyRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElevenlabsKeyStatus'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /admin/codes:
+    get:
+      tags: [Admin]
+      operationId: listAccessCodes
+      summary: Owner-only list of all access codes
+      responses:
+        '200':
+          description: Codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessCodeListResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags: [Admin]
+      operationId: createAccessCode
+      summary: Owner-only — mint a new access code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccessCodeRequest'
+      responses:
+        '200':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessCode'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /admin/codes/{id}:
+    delete:
+      tags: [Admin]
+      operationId: deleteAccessCode
+      summary: Owner-only delete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted.
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /admin/users:
+    get:
+      tags: [Admin]
+      operationId: listAdminUsers
+      summary: Owner-only list of users
+      responses:
+        '200':
+          description: Users.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /quests:
+    get:
+      tags: [Quests]
+      operationId: listQuests
+      summary: List the current user's quests with game stats
+      responses:
+        '200':
+          description: Quests with stats.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestListPayload'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags: [Quests]
+      operationId: createQuest
+      summary: Generate one or more new quests
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuestRequest'
+      responses:
+        '200':
+          description: Created quests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedQuestsBatch'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [Quests]
+      operationId: resetQuests
+      summary: Wipe all quests for the current user
+      responses:
+        '200':
+          description: Reset.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestsResetResult'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /quests/{id}/complete:
+    post:
+      tags: [Quests]
+      operationId: completeQuest
+      summary: Mark a quest complete and award XP
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Quest completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestCompletionResult'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Quest not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Quest already completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /history:
+    get:
+      tags: [History]
+      operationId: listHistory
+      summary: List the current user's past video generations
+      responses:
+        '200':
+          description: History entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /history/{id}:
+    get:
+      tags: [History]
+      operationId: getHistoryItem
+      summary: Get a single history item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: History item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryItem'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [History]
+      operationId: deleteHistoryItem
+      summary: Delete a history item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Opaque session token — `Bearer <sid>`.
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      description: Browser session cookie.
+      schema:
+        type: string
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        profileImageUrl:
+          type: [string, 'null']
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/AuthUser'
+            - type: 'null'
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        code_verifier:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+          format: uri
+        state:
+          type: string
+          minLength: 1
+        nonce:
+          type: string
+          minLength: 1
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    CreditError:
+      type: object
+      required: [error, lockedUntil, creditsRemaining]
+      properties:
+        error:
+          type: string
+        lockedUntil:
+          type: [string, 'null']
+          format: date-time
+        creditsRemaining:
+          type: integer
+    Market:
+      type: string
+      enum: [india, usa, uk, global]
+    MeProfile:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl, creditsRemaining, totalCreditsUsed, lockedUntil, shareBonusesClaimed, isOwner, unlimited, unlimitedSource, hasCustomElevenlabsKey, xp, level, xpToNextLevel, streak, bestScore]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        profileImageUrl:
+          type: [string, 'null']
+        creditsRemaining:
+          type: integer
+        totalCreditsUsed:
+          type: integer
+        lockedUntil:
+          type: [string, 'null']
+          format: date-time
+        shareBonusesClaimed:
+          type: integer
+        isOwner:
+          type: boolean
+        unlimited:
+          type: boolean
+        unlimitedSource:
+          type: [string, 'null']
+        hasCustomElevenlabsKey:
+          type: boolean
+        xp:
+          type: integer
+        level:
+          type: integer
+        xpToNextLevel:
+          type: integer
+        streak:
+          type: integer
+        bestScore:
+          type: integer
+    IntegrationStatus:
+      type: object
+      required: [openai, pexels, elevenlabs]
+      properties:
+        openai:
+          type: boolean
+        pexels:
+          type: boolean
+        elevenlabs:
+          type: boolean
+    BuildType:
+      type: string
+      enum: [reel, long, audio]
+    BuildTone:
+      type: string
+      enum: [cinematic, friendly, high-energy, authoritative, storytelling, comedic]
+    BuildLength:
+      type: string
+      enum: [short, medium, long, podcast]
+    BuildOptions:
+      type: object
+      properties:
+        chapters:
+          type: boolean
+        monetize:
+          type: boolean
+        broll:
+          type: boolean
+    GenerateScriptRequest:
+      type: object
+      required: [prompt, market]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+        market:
+          $ref: '#/components/schemas/Market'
+        niche:
+          type: [string, 'null']
+        targetSeconds:
+          type: [integer, 'null']
+          minimum: 15
+          maximum: 90
+        buildType:
+          $ref: '#/components/schemas/BuildType'
+        tone:
+          $ref: '#/components/schemas/BuildTone'
+        length:
+          $ref: '#/components/schemas/BuildLength'
+        options:
+          $ref: '#/components/schemas/BuildOptions'
+    Scene:
+      type: object
+      required: [order, narration, keywords]
+      properties:
+        order:
+          type: integer
+        narration:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+    ScriptGeneration:
+      type: object
+      required: [title, hook, fullScript, scenes, hashtags, market, creditsRemaining, lockedUntil]
+      properties:
+        title:
+          type: string
+        hook:
+          type: string
+        fullScript:
+          type: string
+        scenes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Scene'
+        hashtags:
+          type: array
+          items:
+            type: string
+        market:
+          $ref: '#/components/schemas/Market'
+        creditsRemaining:
+          type: integer
+        lockedUntil:
+          type: [string, 'null']
+          format: date-time
+        chapters:
+          type: [array, 'null']
+          items:
+            type: string
+        bRollIdeas:
+          type: [array, 'null']
+          items:
+            type: string
+        monetizationTips:
+          type: [array, 'null']
+          items:
+            type: string
+        qualityScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        buildType:
+          $ref: '#/components/schemas/BuildType'
+        tone:
+          $ref: '#/components/schemas/BuildTone'
+        length:
+          $ref: '#/components/schemas/BuildLength'
+        xpAwarded:
+          type: integer
+        levelUp:
+          type: boolean
+        bonusCreditsGranted:
+          type: integer
+        newLevel:
+          type: integer
+        streak:
+          type: integer
+    QuestDifficulty:
+      type: string
+      enum: [easy, medium, hard]
+    Quest:
+      type: object
+      required: [id, title, description, niche, difficulty, xpReward, isCompleted, completedAt, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        niche:
+          type: [string, 'null']
+        difficulty:
+          $ref: '#/components/schemas/QuestDifficulty'
+        xpReward:
+          type: integer
+        isCompleted:
+          type: boolean
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    GameStats:
+      type: object
+      required: [xp, level, xpToNextLevel, streak, bestScore, lastBuildDate]
+      properties:
+        xp:
+          type: integer
+        level:
+          type: integer
+        xpToNextLevel:
+          type: integer
+        streak:
+          type: integer
+        bestScore:
+          type: integer
+        lastBuildDate:
+          type: [string, 'null']
+    QuestListPayload:
+      type: object
+      required: [quests, stats]
+      properties:
+        quests:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quest'
+        stats:
+          $ref: '#/components/schemas/GameStats'
+    CreateQuestRequest:
+      type: object
+      properties:
+        niche:
+          type: [string, 'null']
+        difficulty:
+          $ref: '#/components/schemas/QuestDifficulty'
+        count:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 5
+    CreatedQuestsBatch:
+      type: object
+      required: [quests]
+      properties:
+        quests:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quest'
+    QuestReward:
+      type: object
+      required: [xpAwarded, levelUp, bonusCreditsGranted]
+      properties:
+        xpAwarded:
+          type: integer
+        levelUp:
+          type: boolean
+        bonusCreditsGranted:
+          type: integer
+    QuestCompletionResult:
+      type: object
+      required: [quest, reward, stats]
+      properties:
+        quest:
+          $ref: '#/components/schemas/Quest'
+        reward:
+          $ref: '#/components/schemas/QuestReward'
+        stats:
+          $ref: '#/components/schemas/GameStats'
+    QuestsResetResult:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+    RewriteScriptRequest:
+      type: object
+      required: [script, instruction, market]
+      properties:
+        script:
+          type: string
+          minLength: 1
+        instruction:
+          type: string
+          minLength: 1
+        market:
+          $ref: '#/components/schemas/Market'
+    RewriteResult:
+      type: object
+      required: [script]
+      properties:
+        script:
+          type: string
+    PexelsSearchRequest:
+      type: object
+      required: [keywords]
+      properties:
+        keywords:
+          type: array
+          items:
+            type: string
+        perKeyword:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 5
+    PexelsClip:
+      type: object
+      required: [id, keyword, videoUrl, thumbnailUrl, durationSeconds, width, height]
+      properties:
+        id:
+          type: string
+        keyword:
+          type: string
+        videoUrl:
+          type: string
+        thumbnailUrl:
+          type: string
+        durationSeconds:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+    PexelsSearchResponse:
+      type: object
+      required: [clips]
+      properties:
+        clips:
+          type: array
+          items:
+            $ref: '#/components/schemas/PexelsClip'
+    Voice:
+      type: object
+      required: [id, name, accent, market, description, previewUrl, isCustom]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        accent:
+          type: string
+        market:
+          $ref: '#/components/schemas/Market'
+        description:
+          type: string
+        previewUrl:
+          type: [string, 'null']
+        isCustom:
+          type: boolean
+    VoicesResponse:
+      type: object
+      required: [voices]
+      properties:
+        voices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Voice'
+    SynthesizeRequest:
+      type: object
+      required: [text, voiceId]
+      properties:
+        text:
+          type: string
+          minLength: 1
+        voiceId:
+          type: string
+          minLength: 1
+    SynthesizeResponse:
+      type: object
+      required: [audioUrl, durationSeconds]
+      properties:
+        audioUrl:
+          type: string
+        durationSeconds:
+          type: number
+    RenderClipInput:
+      type: object
+      required: [url, kind]
+      properties:
+        url:
+          type: string
+        kind:
+          type: string
+          enum: [pexels, upload, image]
+        durationSeconds:
+          type: [number, 'null']
+    RenderRequest:
+      type: object
+      required: [title, market, script, audioUrl, clips]
+      properties:
+        title:
+          type: string
+        market:
+          $ref: '#/components/schemas/Market'
+        script:
+          type: string
+        audioUrl:
+          type: string
+        voiceName:
+          type: [string, 'null']
+        clips:
+          type: array
+          items:
+            $ref: '#/components/schemas/RenderClipInput'
+    RenderResponse:
+      type: object
+      required: [historyId, mp4Url, thumbnailUrl, durationSeconds]
+      properties:
+        historyId:
+          type: integer
+        mp4Url:
+          type: string
+        thumbnailUrl:
+          type: string
+        durationSeconds:
+          type: number
+    HistoryItem:
+      type: object
+      required: [id, title, market, script, mp4Url, thumbnailUrl, durationSeconds, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        market:
+          $ref: '#/components/schemas/Market'
+        script:
+          type: string
+        mp4Url:
+          type: string
+        thumbnailUrl:
+          type: string
+        durationSeconds:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+    HistoryListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryItem'
+    RedeemCodeRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 1
+    RedeemCodeResponse:
+      type: object
+      required: [ok, alreadyRedeemed, grantUnlimited, bonusCredits]
+      properties:
+        ok:
+          type: boolean
+        alreadyRedeemed:
+          type: boolean
+        grantUnlimited:
+          type: boolean
+        bonusCredits:
+          type: integer
+    CustomVoice:
+      type: object
+      required: [id, name, voiceId, market, description, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        voiceId:
+          type: string
+        market:
+          $ref: '#/components/schemas/Market'
+        description:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+    CustomVoiceListResponse:
+      type: object
+      required: [voices]
+      properties:
+        voices:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomVoice'
+    AddCustomVoiceRequest:
+      type: object
+      required: [name, voiceId, market]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        voiceId:
+          type: string
+          minLength: 1
+        market:
+          $ref: '#/components/schemas/Market'
+        description:
+          type: [string, 'null']
+    ElevenlabsKeyStatus:
+      type: object
+      required: [hasKey]
+      properties:
+        hasKey:
+          type: boolean
+    SetElevenlabsKeyRequest:
+      type: object
+      required: [apiKey]
+      properties:
+        apiKey:
+          type: [string, 'null']
+    AccessCode:
+      type: object
+      required: [id, code, label, grantUnlimited, bonusCredits, maxUses, usedCount, expiresAt, createdAt]
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        label:
+          type: [string, 'null']
+        grantUnlimited:
+          type: boolean
+        bonusCredits:
+          type: integer
+        maxUses:
+          type: integer
+        usedCount:
+          type: integer
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    AccessCodeListResponse:
+      type: object
+      required: [codes]
+      properties:
+        codes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessCode'
+    CreateAccessCodeRequest:
+      type: object
+      properties:
+        label:
+          type: [string, 'null']
+        grantUnlimited:
+          type: [boolean, 'null']
+        bonusCredits:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 500
+        maxUses:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 10000
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+    AdminUser:
+      type: object
+      required: [id, email, firstName, lastName, createdAt, isOwner, unlimited, unlimitedSource]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        isOwner:
+          type: boolean
+        unlimited:
+          type: boolean
+        unlimitedSource:
+          type: [string, 'null']
+    AdminUserListResponse:
+      type: object
+      required: [users]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'

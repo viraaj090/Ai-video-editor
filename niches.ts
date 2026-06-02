@@ -1,0 +1,148 @@
+export interface Niche {
+  id: string;
+  label: string;
+  topics: string[];
+}
+
+export const NICHES: Niche[] = [
+  {
+    id: "self-improvement",
+    label: "Self-improvement",
+    topics: [
+      "5 morning habits that quietly destroy your day",
+      "Why ambitious people stay broke",
+      "The 2-minute rule that changed my entire life",
+      "Discipline isn't about motivation — it's about identity",
+      "Stop trying to be productive. Try this instead.",
+      "How to wake up at 5 AM without hating life",
+      "The one boundary that fixes 90% of stress",
+      "Why successful people protect their mornings",
+    ],
+  },
+  {
+    id: "money",
+    label: "Money & Finance",
+    topics: [
+      "3 money habits the middle class never learns",
+      "Why your salary will never make you rich",
+      "How to build a side hustle in 30 days",
+      "The investing rule everyone gets wrong in their 20s",
+      "Stop saving money the wrong way",
+      "5 expenses rich people quietly cut",
+      "Compound interest explained in 60 seconds",
+      "The biggest financial mistake of your 20s",
+    ],
+  },
+  {
+    id: "tech-ai",
+    label: "Tech & AI",
+    topics: [
+      "5 AI tools that feel illegal to know",
+      "ChatGPT prompts that 10x your work",
+      "Why most people use AI completely wrong",
+      "The free AI tool replacing entire teams",
+      "How AI is changing freelancing forever",
+      "3 underrated AI tools you've never heard of",
+      "AI is not taking your job — but this person is",
+      "The AI workflow that saves me 20 hours a week",
+    ],
+  },
+  {
+    id: "fitness",
+    label: "Fitness & Health",
+    topics: [
+      "Why your workouts aren't working anymore",
+      "The 80/20 rule of fat loss nobody talks about",
+      "5 minute morning routine that fixes posture",
+      "Stop counting calories. Do this instead.",
+      "The truth about protein nobody told you",
+      "How walking 10k steps changed my body",
+      "Why sleep is the cheat code to muscle growth",
+      "3 exercises every desk worker needs",
+    ],
+  },
+  {
+    id: "career",
+    label: "Career & Skills",
+    topics: [
+      "Why being good at your job is not enough",
+      "5 skills that will outearn a college degree",
+      "How to negotiate your salary without being awkward",
+      "The career advice I wish I got at 22",
+      "Why nobody promotes the hardest worker",
+      "Stop building a resume. Build leverage.",
+      "3 questions to ask before quitting your job",
+      "How to get noticed in a remote-first company",
+    ],
+  },
+  {
+    id: "psychology",
+    label: "Psychology & Mindset",
+    topics: [
+      "5 mind tricks that make people respect you instantly",
+      "Why you feel anxious for no reason",
+      "The dark psychology of social media",
+      "Why your brain craves drama (and how to stop it)",
+      "How to stop overthinking in 60 seconds",
+      "The science of confidence — explained simply",
+      "Why successful people say no more often",
+      "How dopamine is hijacking your decisions",
+    ],
+  },
+  {
+    id: "stories",
+    label: "True stories & history",
+    topics: [
+      "The Indian student who beat the entire IIT in 6 months",
+      "The con man who fooled 12 banks at once",
+      "How a janitor invented a billion-dollar product",
+      "The athlete everyone said was washed up",
+      "The smallest country that beat the biggest army",
+      "How a teenager broke the lottery",
+      "The lawsuit that changed the internet forever",
+      "The day Bitcoin should have been killed",
+    ],
+  },
+  {
+    id: "relationships",
+    label: "Relationships & Dating",
+    topics: [
+      "5 green flags people overlook",
+      "Why nice people stay single",
+      "The conversation that ends 90% of relationships",
+      "How to spot a manipulator in 10 seconds",
+      "Why you keep attracting the wrong people",
+      "Stop chasing. Start choosing.",
+      "The best friendship test most people fail",
+      "What healthy love actually looks like (no filter)",
+    ],
+  },
+  {
+    id: "science-facts",
+    label: "Science & curiosity",
+    topics: [
+      "5 facts about your brain that sound fake",
+      "Why time feels faster as you get older",
+      "What happens to your body in 7 days of no sugar",
+      "The reason déjà vu actually exists",
+      "Why dogs always look at us when they poop",
+      "Space facts that will keep you awake tonight",
+      "Why your phone battery dies so fast (it's not the apps)",
+      "The deepest place humans have ever been",
+    ],
+  },
+  {
+    id: "food",
+    label: "Food & cooking",
+    topics: [
+      "5 Indian breakfasts that beat any protein shake",
+      "The cheapest meal a chef would actually eat",
+      "Why restaurant food tastes better — the real reason",
+      "3 cooking hacks every student needs",
+      "What ultra-processed food does to your gut",
+      "How to meal prep in under 30 minutes",
+      "The truth about olive oil nobody tells you",
+      "5 spices that double the flavour instantly",
+    ],
+  },
+];
